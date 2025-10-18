@@ -5,12 +5,13 @@ type Range = readonly [number, number];
 type SizeRow = { label: string; bust: Range; waist: Range; hip: Range };
 
 // ---- TUNE TO YOUR CHART (cm) ----
+// Megaska Swimwear – brand size chart (inches)
 const SIZE_CHART: readonly SizeRow[] = [
-  { label: "S",   bust: [80, 86],  waist: [64, 70],  hip: [86, 94]   },
-  { label: "M",   bust: [87, 94],  waist: [71, 78],  hip: [95, 101]  },
-  { label: "L",   bust: [95, 101], waist: [79, 86],  hip: [102, 108] },
-  { label: "XL",  bust: [102,108], waist: [87, 94],  hip: [109, 115] },
-  { label: "XXL", bust: [109,116], waist: [95, 104], hip: [116, 124] }
+  { label: "S",   bust: [32, 34], waist: [28, 30], hip: [34, 36] },
+  { label: "M",   bust: [34, 36], waist: [30, 32], hip: [36, 38] },
+  { label: "L",   bust: [36, 38], waist: [32, 34], hip: [38, 40] },
+  { label: "XL",  bust: [38, 40], waist: [34, 36], hip: [40, 42] },
+  { label: "XXL", bust: [40, 42], waist: [36, 38], hip: [42, 44] }
 ] as const;
 
 const inToCm = (i: number) => i * 2.54;
