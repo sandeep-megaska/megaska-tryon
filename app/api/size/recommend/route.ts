@@ -98,25 +98,27 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const unit: "metric" | "imperial" = body.unit === "imperial" ? "imperial" : "metric";
+// Read explicit fields first (our UI now sends these)
+const bust_in   : number | undefined = body.bust_in ?? undefined;
+const waist_in  : number | undefined = body.waist_in ?? undefined;
+const hip_in    : number | undefined = body.hip_in ?? undefined;
+const height_cm : number | undefined = body.height_cm ?? undefined;
+const weight_kg : number | undefined = body.weight_kg ?? undefined;
 
-    const height_cm = body.height ? (unit === "imperial" ? Math.round(inToCm(body.height)) : Math.round(body.height)) : undefined;
-    const weight_kg = body.weight ? (unit === "imperial" ? Math.round(body.weight * 0.453592) : Math.round(body.weight)) : undefined;
+// Back-compat: if someone still posts old fields (bust in cm/inches, weight in lb),
+// try to infer sensibly.
+const inch = (n:number)=>n; const cmToIn = (n:number)=> n/2.54; const lbToKg = (n:number)=> n*0.453592;
 
-    const bust_cm  = body.bust  ? (unit === "imperial" ? inToCm(body.bust)  : body.bust)  : undefined;
-    const waist_cm = body.waist ? (unit === "imperial" ? inToCm(body.waist) : body.waist) : undefined;
-    const hip_cm   = body.hip   ? (unit === "imperial" ? inToCm(body.hip)   : body.hip)   : undefined;
+const bustIn   = bust_in  ?? (typeof body.bust  === "number" ? (body.unit==="imperial" ? inch(body.bust)  : cmToIn(body.bust))  : undefined);
+const waistIn  = waist_in ?? (typeof body.waist === "number" ? (body.unit==="imperial" ? inch(body.waist) : cmToIn(body.waist)) : undefined);
+const hipIn    = hip_in   ?? (typeof body.hip   === "number" ? (body.unit==="imperial" ? inch(body.hip)   : cmToIn(body.hip))   : undefined);
+const heightCm = height_cm ?? (typeof body.height === "number" ? (body.unit==="imperial" ? Math.round(body.height*2.54) : Math.round(body.height)) : undefined);
+const weightKg = weight_kg ?? (typeof body.weight === "number" ? (body.unit==="imperial" ? lbToKg(body.weight) : body.weight) : undefined);
 
-    const { band: bra_band, cup: bra_cup } = parseBra(body.bra);
+// Use bustIn/waistIn/hipIn with your chart (which is in inches)
+const byChart = pickFromChart(bustIn, waistIn, hipIn);
+const byHW    = sizeByHW(heightCm, weightKg);
 
-    let bust_est = bust_cm;
-    if (!bust_est && bra_band && bra_cup) {
-      const cupMap: Record<string, number> = { A: 2.5, B: 5, C: 7.5, D: 10, DD: 12.5, E: 12.5, F: 15 };
-      bust_est = bra_band * 2.54 + (cupMap[bra_cup] || 7.5) * 2.54;
-    }
-
-    const byChart = pickFromChart(bust_est, waist_cm, hip_cm);
-    const byHW = sizeByHW(height_cm, weight_kg);
-    const size = byChart || byHW || "M";
 
     const coverage = chooseCoverage(body.activity, body.modesty, !!body.tummy_control, body.style_preference);
     const notes = fitCopy(size, coverage, { t: !!body.tummy_control, a: body.activity, m: body.modesty });
