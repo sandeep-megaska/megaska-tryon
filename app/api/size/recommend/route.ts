@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE!
-);
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 type Range = readonly [number, number];
-
-type SizeRow = {
-  label: string;
-  bust: Range;
-  waist: Range;
-  hip: Range;
-};
+type SizeRow = { label: string; bust: Range; waist: Range; hip: Range };
 
 // ---- TUNE TO YOUR CHART (cm) ----
-const SIZE_CHART: SizeRow[] = [
+const SIZE_CHART: readonly SizeRow[] = [
   { label: "S",   bust: [80, 86],  waist: [64, 70],  hip: [86, 94]   },
   { label: "M",   bust: [87, 94],  waist: [71, 78],  hip: [95, 101]  },
   { label: "L",   bust: [95, 101], waist: [79, 86],  hip: [102, 108] },
@@ -25,6 +14,16 @@ const SIZE_CHART: SizeRow[] = [
 ] as const;
 
 const inToCm = (i: number) => i * 2.54;
+
+// Lazy Supabase: only create if envs exist, and only when the request runs
+let _sb: SupabaseClient | null = null;
+function getSB(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE;
+  if (!url || !key) return null;
+  if (!_sb) _sb = createClient(url, key);
+  return _sb;
+}
 
 function sizeByHW(h?: number, w?: number) {
   if (!h || !w) return null;
@@ -47,7 +46,7 @@ function pickFromChart(bustCm?: number, waistCm?: number, hipCm?: number): strin
     if (v == null) return 0;
     if (v < lo) return lo - v;
     if (v > hi) return v - hi;
-    return Math.abs(v - mid(lo, hi)) * 0.1; // small tie-breaker
+    return Math.abs(v - mid(lo, hi)) * 0.1;
   };
 
   for (const s of SIZE_CHART) {
@@ -72,12 +71,7 @@ function parseBra(bra?: string) {
   return { band: parseInt(m[1], 10), cup: m[2] };
 }
 
-function chooseCoverage(
-  activity?: string,
-  modesty?: string,
-  tummy?: boolean,
-  pref?: string | null
-) {
+function chooseCoverage(activity?: string, modesty?: string, tummy?: boolean, pref?: string | null) {
   if (pref === "burkini") return "burkini";
   if (pref === "swimdress") return "knee length";
   if (pref === "rashguard") return "one-piece + rash guard";
@@ -126,9 +120,10 @@ export async function POST(req: NextRequest) {
     const coverage = chooseCoverage(body.activity, body.modesty, !!body.tummy_control, body.style_preference);
     const notes = fitCopy(size, coverage, { t: !!body.tummy_control, a: body.activity, m: body.modesty });
 
-    // Optional logging (only if envs are set)
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
-      await supabase.from("size_quiz_responses").insert({
+    // Optional logging — only if envs are present
+    const sb = getSB();
+    if (sb) {
+      await sb.from("size_quiz_responses").insert({
         product_handle: body.product_handle || null,
         product_title: body.product_title || null,
         height_cm,
